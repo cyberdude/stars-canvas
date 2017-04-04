@@ -1,217 +1,104 @@
 "use strict";
 
-var request   = require('request')
-  , qs        = require('qs')
-  , _         = require('underscore');
+var StarModule = {};
 
-function WP_Node() {
+var canvas = document.getElementById('canvas'),
+  ctx = canvas.getContext('2d'),
+  w = canvas.width = window.innerWidth,
+  h = canvas.height = window.innerHeight,
+    
+  hue = 217,
+  stars = [],
+  count = 0,
+  maxStars = 400;
 
-  //Defaults
-  this.TTL        = 86400;
-  this.logger     = false;
-  this.endpoint   = '';
-  this.db         = null;
-  this.endpoint   = '';
-  this.url        = '';
-  this.secret     = '12345';
-}
+// Thanks @jackrugile for the performance tip! http://codepen.io/jackrugile/pen/BjBGoM
+// Cache gradient
+var canvas2 = document.createElement('canvas'),
+    ctx2 = canvas2.getContext('2d');
+    canvas2.width = 100;
+    canvas2.height = 100;
+var half = canvas2.width/2,
+    gradient2 = ctx2.createRadialGradient(half, half, 0, half, half, half);
+    gradient2.addColorStop(0.025, '#fff');
+    gradient2.addColorStop(0.1, 'hsl(' + hue + ', 61%, 33%)');
+    gradient2.addColorStop(0.25, 'hsl(' + hue + ', 64%, 6%)');
+    gradient2.addColorStop(1, 'transparent');
 
-WP_Node.prototype._isEmptyObject = function(obj) {
+    ctx2.fillStyle = gradient2;
+    ctx2.beginPath();
+    ctx2.arc(half, half, half, 0, Math.PI * 2);
+    ctx2.fill();
 
-  return !Object.keys(obj).length;
-}
+// End cache
 
-WP_Node.prototype.log = function(msg) {
-
-  if (this.logger)
-    console.log(msg);
-}
-
-WP_Node.prototype.setGlobalOptions = function(options) {
-
-  for(var key in options)
-    this[key] = options[key];
-
-}
-WP_Node.prototype.generateSiteMap = function(options, cb){
-
-  var self      = this
-    , options   = options           || {}
-    , endpoint  = options.endpoint  || self.endpoint
-    , pre_link  = options.pre_link  || ''
-    , priority  = options.priority  || 0.5
-    , sitemap   = [];
-
-  if (!endpoint
-        || typeof endpoint === 'undefined') {
-    cb({
-        code      : 120,
-        message   : 'A WordPress endpoint is required to generate a WP Site Map'
-      }, null
-    );
-    return;
+function random(min, max) {
+  if (arguments.length < 2) {
+    max = min;
+    min = 0;
+  }
+  
+  if (min > max) {
+    var hold = max;
+    max = min;
+    min = hold;
   }
 
-  self.log('Generating WordPress sitemap from ' + endpoint);
-
-  request({
-    url : endpoint,
-    qs  : {
-      post_type : 'post'
-    }
-  }, function(e, r, posts){
-
-    if (typeof posts === 'string')
-      posts = JSON.parse(posts);
-
-    _.each(posts, function(post){
-      sitemap.push({
-        url         : pre_link + '/' + post.slug + '/' + post.id,
-        changefreq  : 'daily',
-        priority    : priority
-      });
-    });
-
-    cb(e, sitemap);
-  })
-
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-WP_Node.prototype.cache = function(options, fn) {
-
-  var self = this;
-  var TTL = options.TTL || self.TTL;
-
-  self.log('Cache TTL is ' + TTL);
-
-  var url   = options.url || self.endpoint
-    , db    = options.db  || self.db
-    , _qs   = options.qs  || {}
-    , _id   = '';
-
-    if (!self._isEmptyObject(_qs)) {
-      self.log('_qs defined');
-      _id = qs.stringify(_qs);
-    }
-
-    if (!url) {
-      fn(
-        null, {
-          code      : 100,
-          message   : "No URL endpoint provided."
-        }
-      );
-      return;
-    }
-
-    _id = url + ( (url.indexOf('?') > -1) ? _id : '?' + _id );
-
-    self.log('Final ID to mongo is: ' + _id);
-
-    //Let's force the wordpress feed channel
-    if (options.forceWPJSONFeed)
-      _qs.feed = 'json';
-
-    //Go Straight to mongo
-    db.collection('cache', function(err, collection) {
-      collection.findOne({ id: _id, invalid : undefined }, function(err, item) {
-
-        if (!item) {
-          self.log('Getting fresh content for ' + _id);
-
-          self.processRequest({
-            request:{
-                url: url,
-                qs: _qs
-              },
-            id: _id,
-            db: db,
-            callback: fn
-          });
-
-        } else {
-
-          //Check if we are over the cache limit
-          var currentTime = +new Date();
-
-          if ( ((currentTime - item.wp_timestamp)/1000) > TTL) {
-
-            self.log('Removing and getting fresh content for ' + _id);
-
-            db.collection('cache', function(err, collection) {
-              collection.update({ id: _id, invalid : undefined }, { $set : { invalid : true } }, {multi : true}, function(err, result) {
-
-                if (err)
-                  self.log(err);
-
-                self.processRequest({
-                  request:{
-                      url: url,
-                      qs: _qs
-                    },
-                    id: _id,
-                    db: db,
-                    callback: fn
-                });
-              })
-            });
-
-          } else {
-
-            self.log('Getting cache for ' + _id);
-            self.log(item.wp_timestamp);
-
-            fn(item.content, null);
-          }
-
-        }
-      });
-    });
+function maxOrbit(x,y) {
+  var max = Math.max(x,y),
+      diameter = Math.round(Math.sqrt(max*max + max*max));
+  return diameter/2;
 }
 
-WP_Node.prototype.processRequest = function(obj) {
-  // request start
-  var self = this;
+var Star = function() {
 
-    request.get(obj.request, function(e, r, b){
+  this.orbitRadius = random(maxOrbit(w,h));
+  this.radius = random(60, this.orbitRadius) / 12;
+  this.orbitX = w / 2;
+  this.orbitY = h / 2;
+  this.timePassed = random(0, maxStars);
+  this.speed = random(this.orbitRadius) / 10000000;
+  this.alpha = random(2, 10) / 10;
 
-      try {
-        b = JSON.parse(b);
-      } catch (ex) {
-        self.log(ex);
-        //TODO: This need to change to our error model
-        obj.callback({error: ex});
-        return;
-      }
-
-      var cache_object = {
-        id            : obj.id,
-        content       : b,
-        wp_timestamp  : +new Date()
-      }
-
-      obj.db.collection('cache', function(err, collection) {
-        collection.insert(cache_object, { safe:true }, function(err, result) {
-            if (err) {
-              self.log(err);
-
-              obj.callback(
-                null, {
-                  code              : 110,
-                  message           : "MongoDB error",
-                  extra_information : err.code
-                }
-              );
-            } else {
-                obj.callback(result[0].content, null);
-            }
-        });
-      });
-    }); //request end
+  count++;
+  stars[count] = this;
 }
 
-var finalObject = new WP_Node();
+Star.prototype.draw = function() {
+  var x = Math.sin(this.timePassed) * this.orbitRadius + this.orbitX,
+      y = Math.cos(this.timePassed) * this.orbitRadius + this.orbitY,
+      twinkle = random(10);
 
-finalObject.wordpress = require('./lib/wordpress.js')(finalObject);
+  if (twinkle === 1 && this.alpha > 0) {
+    this.alpha -= 0.05;
+  } else if (twinkle === 2 && this.alpha < 1) {
+    this.alpha += 0.05;
+  }
 
-module.exports = finalObject;
+  ctx.globalAlpha = this.alpha;
+    ctx.drawImage(canvas2, x - this.radius / 2, y - this.radius / 2, this.radius, this.radius);
+  this.timePassed += this.speed;
+}
+
+for (var i = 0; i < maxStars; i++) {
+  new Star();
+}
+
+function animation() {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.8;
+    ctx.fillStyle = 'hsla(' + hue + ', 64%, 6%, 1)';
+    ctx.fillRect(0, 0, w, h)
+  
+  ctx.globalCompositeOperation = 'lighter';
+  for (var i = 1, l = stars.length; i < l; i++) {
+    stars[i].draw();
+  };  
+  
+  window.requestAnimationFrame(animation);
+}
+
+animation();
