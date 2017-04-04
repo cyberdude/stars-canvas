@@ -1,0 +1,16 @@
+{
+  "name": "stars-canvas",
+  "version": "0.0.1",
+  "description": "Canvas with stars",
+  "main": "index.js",
+  "scripts": {
+  },
+  "repository": "git@github.com:cyberdude/stars-canvas.git",
+  "keywords": [
+    "stars"
+  ],
+  "author": "Arnaldo Capo <hello@arnaldocapo.com>",
+  "license": "MIT",
+  "dependencies": {
+  }
+}
