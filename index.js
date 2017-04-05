@@ -1,104 +1,185 @@
-"use strict";
+var canvas = document.getElementById("canvas"),
+    ctx = canvas.getContext('2d');
 
-var StarModule = {};
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
 
-var canvas = document.getElementById('canvas'),
-  ctx = canvas.getContext('2d'),
-  w = canvas.width = window.innerWidth,
-  h = canvas.height = window.innerHeight,
+var stars = [], // Array that contains the stars
+    FPS = 24, // Frames per second
+    x = 80; // Number of stars
+
+// Push stars to array
+
+for (var i = 0; i < x; i++) {
+  stars.push({
+    x: Math.random() * canvas.width,
+    y: Math.random() * canvas.height,
+    radius: Math.random(),
+    vx: Math.floor(Math.random() * 10) - 5,
+    vy: Math.floor(Math.random() * 10) - 5
+  });
+}
+
+// Draw the scene
+
+function draw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+  // ctx.globalCompositeOperation = "lighter";
+  
+  for (var i = 0, x = stars.length; i < x; i++) {
+    var s = stars[i];
+  
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.radius, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+}
+
+// Update star locations
+
+function update() {
+  for (var i = 0, x = stars.length; i < x; i++) {
+    var s = stars[i];
+  
+    s.x += s.vx / FPS;
+    s.y += s.vy / FPS;
     
-  hue = 217,
-  stars = [],
-  count = 0,
-  maxStars = 400;
-
-// Thanks @jackrugile for the performance tip! http://codepen.io/jackrugile/pen/BjBGoM
-// Cache gradient
-var canvas2 = document.createElement('canvas'),
-    ctx2 = canvas2.getContext('2d');
-    canvas2.width = 100;
-    canvas2.height = 100;
-var half = canvas2.width/2,
-    gradient2 = ctx2.createRadialGradient(half, half, 0, half, half, half);
-    gradient2.addColorStop(0.025, '#fff');
-    gradient2.addColorStop(0.1, 'hsl(' + hue + ', 61%, 33%)');
-    gradient2.addColorStop(0.25, 'hsl(' + hue + ', 64%, 6%)');
-    gradient2.addColorStop(1, 'transparent');
-
-    ctx2.fillStyle = gradient2;
-    ctx2.beginPath();
-    ctx2.arc(half, half, half, 0, Math.PI * 2);
-    ctx2.fill();
-
-// End cache
-
-function random(min, max) {
-  if (arguments.length < 2) {
-    max = min;
-    min = 0;
+    if (s.x < 0 || s.x > canvas.width) s.x = -s.x;
+    if (s.y < 0 || s.y > canvas.height) s.y = -s.y;
   }
-  
-  if (min > max) {
-    var hold = max;
-    max = min;
-    min = hold;
-  }
-
-  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function maxOrbit(x,y) {
-  var max = Math.max(x,y),
-      diameter = Math.round(Math.sqrt(max*max + max*max));
-  return diameter/2;
+// Update and draw
+
+function tick() {
+  draw();
+  update();
+  requestAnimationFrame(tick);
 }
 
-var Star = function() {
+tick();
 
-  this.orbitRadius = random(maxOrbit(w,h));
-  this.radius = random(60, this.orbitRadius) / 12;
-  this.orbitX = w / 2;
-  this.orbitY = h / 2;
-  this.timePassed = random(0, maxStars);
-  this.speed = random(this.orbitRadius) / 10000000;
-  this.alpha = random(2, 10) / 10;
 
-  count++;
-  stars[count] = this;
-}
+;(function() {
+  ShootingStar = function(id) {
+    this.n = 0;
+    this.m = 0;
+    this.defaultOptions = {
+      velocity: 8,
+      starSize: 10,
+      life: 300,
+      beamSize: 400,
+      dir: -1
+    };
+    this.options = {};
+    id = (typeof id != "undefined") ? id : "";
+    this.capa = ($(id).lenght > 0) ? "body" : id;
+    this.wW = $(this.capa).innerWidth();
+    this.hW = $(this.capa).innerHeight();
+  };
 
-Star.prototype.draw = function() {
-  var x = Math.sin(this.timePassed) * this.orbitRadius + this.orbitX,
-      y = Math.cos(this.timePassed) * this.orbitRadius + this.orbitY,
-      twinkle = random(10);
-
-  if (twinkle === 1 && this.alpha > 0) {
-    this.alpha -= 0.05;
-  } else if (twinkle === 2 && this.alpha < 1) {
-    this.alpha += 0.05;
+  ShootingStar.prototype.addBeamPart = function(x, y) {
+    this.n++;
+    var name = this.getRandom(100, 1);
+    $("#star" + name).remove();
+    $(this.capa).append("<div id='star" + name + "'></div>");
+    $("#star" + name).append("<div id='haz" + this.n + "' class='haz' style='position:absolute; color:#FF0; width:10px; height:10px; font-weight:bold; font-size:" + this.options.starSize + "px'>·</div>");
+    if (this.n > 1) $("#haz" + (this.n - 1)).css({
+      color: "rgba(255,255,255,0.5)"
+    });
+    $("#haz" + this.n).css({
+      top: y + this.n,
+      left: x + (this.n * this.options.dir)
+    });
   }
 
-  ctx.globalAlpha = this.alpha;
-    ctx.drawImage(canvas2, x - this.radius / 2, y - this.radius / 2, this.radius, this.radius);
-  this.timePassed += this.speed;
-}
+  ShootingStar.prototype.delTrozoHaz = function() {
+    this.m++;
+    $("#haz" + this.m).animate({
+      opacity: 0
+    }, 75);
+  }
 
-for (var i = 0; i < maxStars; i++) {
-  new Star();
-}
+  ShootingStar.prototype.getRandom = function(max, min) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
 
-function animation() {
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.8;
-    ctx.fillStyle = 'hsla(' + hue + ', 64%, 6%, 1)';
-    ctx.fillRect(0, 0, w, h)
-  
-  ctx.globalCompositeOperation = 'lighter';
-  for (var i = 1, l = stars.length; i < l; i++) {
-    stars[i].draw();
-  };  
-  
-  window.requestAnimationFrame(animation);
-}
+  ShootingStar.prototype.toType = function(obj) {
+    if (typeof obj === "undefined") {
+      return "undefined"; /* consider: typeof null === object */
+    }
+    if (obj === null) {
+      return "null";
+    }
+    var type = Object.prototype.toString.call(obj).match(/^\[object\s(.*)\]$/)[1] || '';
+    switch (type) {
+      case 'Number':
+        if (isNaN(obj)) {
+          return "nan";
+        } else {
+          return "number";
+        }
+      case 'String':
+      case 'Boolean':
+      case 'Array':
+      case 'Date':
+      case 'RegExp':
+      case 'Function':
+        return type.toLowerCase();
+    }
+    if (typeof obj === "object") {
+      return "object";
+    }
+    return undefined;
+  }
 
-animation();
+  ShootingStar.prototype.launchStar = function(options) {
+    if (this.toType(options) != "object") {
+      options = {};
+    }
+    this.options = $.extend({}, this.defaultOptions, options);
+    this.n = 0;
+    this.m = 0;
+    var i = 0,
+      l = this.options.beamSize,
+      x = this.getRandom(this.wW - this.options.beamSize - 100, 100),
+      y = this.getRandom(this.hW - this.options.beamSize - 100, 100),
+      self = this;
+    for (; i < l; i++) {
+      setTimeout(function() {
+        self.addBeamPart(x, y);
+      }, self.options.life + (i * self.options.velocity));
+    }
+    for (i = 0; i < l; i++) {
+      setTimeout(function() {
+        self.delTrozoHaz()
+      }, self.options.beamSize + (i * self.options.velocity));
+    }
+  }
+
+  ShootingStar.prototype.launch = function(everyTime) {
+    if (this.toType(everyTime) != "number") {
+      everyTime = 10;
+    }
+    everyTime = everyTime * 1000;
+    this.launchStar();
+    var self = this;
+    setInterval(function() {
+      var options = {
+        dir: (self.getRandom(1, 0)) ? 1 : -1,
+        life: self.getRandom(400, 100),
+        beamSize: self.getRandom(700, 400),
+        velocity: self.getRandom(10, 4)
+      }
+      self.launchStar(options);
+    }, everyTime);
+  }
+
+})();
+
+$(document).ready(function() {
+  var shootingStarObj = new ShootingStar("body");
+  shootingStarObj.launch(45);
+});
