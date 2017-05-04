@@ -6,7 +6,7 @@ canvas.height = window.innerHeight;
 
 var stars = [], // Array that contains the stars
     FPS = 24, // Frames per second
-    x = 80; // Number of stars
+    x = 50; // Number of stars
 
 // Push stars to array
 
@@ -181,5 +181,5 @@ tick();
 
 $(document).ready(function() {
   var shootingStarObj = new ShootingStar("body");
-  shootingStarObj.launch(45);
+  shootingStarObj.launch(90);
 });
